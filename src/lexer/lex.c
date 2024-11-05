@@ -1,50 +1,21 @@
 #include "lexer/lex.h"
+#include "utils/characters.h"
 #include "utils/file.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-char word_buffer[WORD_BUFFER_SIZE] = {'\0'};
-
-int is_alpha(const char character) {
-  return ((character >= 'a' && character <= 'z') ||
-          (character >= 'A' && character <= 'Z'));
-}
-
-int is_numeric(const char character) {
-  return (character >= '0' && character <= '9');
-}
-
-int is_alphanumerical(const char character) {
-  return is_alpha(character) || is_numeric(character);
-}
-
-int is_glyph(const char character) {
-  // Glyphs used in the language such as {}.
-  const char glyphs[] = {'(', ')', ';', '{', '}',  '+',  '-',
-                         '*', '/', '>', '<', '=',  '#',  '\'',
-                         '"', ',', '!', ' ', '\n', '\t', '\0'};
-
-  int i = 0;
-
-  while (glyphs[i] != '\0') {
-    if (character == glyphs[i]) {
-      return 1;
-    }
-    i++;
-  }
-
-  return 0;
-}
+const char *token_name[] = {
+    "UNKNOWN_TOKEN", "OPEN_PARENTHESIS", "CLOSE_PARENTHESIS", "OPEN_CURL",
+    "CLOSE_CURL",    "SEMICOLON",        "WHITESPACE",        "CARRIAGE_RETURN",
+    "TAB",           "C_KEYWORD",        "LITERAL",           "IDENTIFIER"};
 
 /**
  * Fetches the next word in the sentence, beginning at index `begin`.
  */
-int get_next_word(const char *sentence, const int begin, const int max_length) {
-
-  // Reinit word buffer.
-  memset(word_buffer, '\0', sizeof(char) * WORD_BUFFER_SIZE);
+int get_next_word(const char *sentence, const int begin, const int max_length,
+                  char *word_buffer) {
 
   int buffer_pointer = 0;
 
@@ -84,66 +55,131 @@ int get_next_word(const char *sentence, const int begin, const int max_length) {
   return max_length;
 }
 
-void lex(const char *filepath) {
+Token tokenize(const char *word) {
+
+  int word_size = 0;
+
+  while (word[word_size] != '\0') {
+    word_size++;
+
+    if (word_size >= WORD_BUFFER_SIZE) {
+      fprintf(
+          stderr,
+          "[tokenize] Could not infer word size; Word size buffer overflow.\n");
+      exit(-1);
+    }
+  }
+
+  char *value = calloc(sizeof(char), word_size);
+  memcpy(value, word, sizeof(char) * word_size);
+
+  Token t = {UNKOWN_TOKEN, value};
+
+  // match glyphs
+  if (word_size == 1 && is_glyph(word[0])) {
+    switch (word[0]) {
+    case '(':
+      t.type = OPEN_PAR;
+      break;
+    case ')':
+      t.type = CLOSE_PAR;
+      break;
+    case '{':
+      t.type = OPEN_CURL;
+      break;
+    case '}':
+      t.type = CLOSE_CURL;
+      break;
+    case ';':
+      t.type = SEMICOLON;
+      break;
+    case ' ':
+      t.type = WHITESPACE;
+      break;
+    case '\n':
+      t.type = CARRIAGE_RETURN;
+      break;
+    case '\t':
+      t.type = TAB;
+      break;
+    }
+  }
+
+  // match C keywords
+
+  switch (word_size) {
+  case 3:
+    if (memcmp(word, "int", 3) == 0)
+      t.type = C_KEYWORD;
+    break;
+
+  case 6:
+    if (memcmp(word, "return", 6) == 0)
+      t.type = C_KEYWORD;
+
+    break;
+  }
+
+  // TODO: literals and identifiers
+
+  return t;
+}
+
+int lex(const char *filepath, Token *token_list) {
 
   FILE *fd = open_file(filepath, "r");
   const int max_iterations = 100;
-
-  char code_buffer[CODE_BUFFER_SIZE] = {'\0'};
+  int token_counter = 0;
 
   while (!feof(fd)) {
-
-    memset(code_buffer, '\0', sizeof(char) * CODE_BUFFER_SIZE);
+    char code_buffer[CODE_BUFFER_SIZE] = {'\0'};
 
     size_t read = fread(code_buffer, sizeof(char), CODE_BUFFER_SIZE, fd);
     printf("[lex-fd] Read %ld bytes: \n%s\n", read, code_buffer);
 
     // now, read all words in the current code buffer.
-    size_t i = 0;
-    int counter = 0;
 
-    while (i < read && counter < max_iterations) {
+    size_t i = 0;
+
+    while (i < read && token_counter < max_iterations) {
       printf("[lex-word] %ld, %ld => ", i, read);
-      i = get_next_word(code_buffer, i, read);
+
+      char word_buffer[WORD_BUFFER_SIZE] = {'\0'};
+      i = get_next_word(code_buffer, i, read, word_buffer);
 
       // Printing glyphs
       if (word_buffer[1] == '\0') {
         switch (word_buffer[0]) {
 
         case '\n':
-          printf("\\n\n");
+          printf("\\n => ");
           break;
 
         case '\t':
-          printf("\\t\n");
+          printf("\\t => ");
           break;
 
         default:
-          printf("%c\n", word_buffer[0]);
+          printf("%c => ", word_buffer[0]);
           break;
         }
       } else {
-        printf("%s\n", word_buffer);
+        printf("%s => ", word_buffer);
       }
 
-      counter++;
+      const Token token = tokenize(word_buffer);
+      printf("%s", token_name[token.type]);
+
+      if (token.value != NULL) {
+        printf(" (%s)\n", token.value);
+      }
+
+      token_list[token_counter++] = token;
     }
   }
 
   close_file(fd);
 
   fprintf(stdout, "[lex] Completed\n");
-}
-
-void test_get_next_word() {
-  int offset = 0;
-  const char *sentence = "Bonjour 17 \n le monde\n";
-  const int max_size = 26;
-
-  int next_end = 0;
-
-  while (next_end < max_size) {
-    next_end = get_next_word(sentence, next_end, max_size);
-    printf("%d => %s\n", next_end, word_buffer);
-  }
+  return token_counter;
 }
