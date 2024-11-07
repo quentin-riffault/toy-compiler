@@ -6,10 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-const char *token_name[] = {
-    "UNKNOWN_TOKEN", "OPEN_PARENTHESIS", "CLOSE_PARENTHESIS", "OPEN_CURL",
-    "CLOSE_CURL",    "SEMICOLON",        "WHITESPACE",        "CARRIAGE_RETURN",
-    "TAB",           "C_KEYWORD",        "LITERAL",           "IDENTIFIER"};
+extern const KeywordMap keywords[LANGUAGE_KEYWORDS_NUMBER];
+extern const char *token_name[LANGUAGE_TOKENS_NUMBER];
 
 /**
  * Fetches the next word in the sentence, beginning at index `begin`.
@@ -55,6 +53,36 @@ int get_next_word(const char *sentence, const int begin, const int max_length,
   return max_length;
 }
 
+int match_glyph(const char *word, Token *t) {
+  t->type = is_glyph(word[0]);
+  return t->type != UNKNOWN_TOKEN;
+}
+
+int match_keyword(const char *word, const int word_size, Token *t) {
+
+  for (int i = 0; i < 2; i++) {
+    const KeywordMap current = keywords[i];
+
+    if (word_size != current.size) {
+      continue;
+    }
+
+    if (memcmp(word, current.word, current.size) == 0) {
+      t->type = C_KEYWORD;
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+int match_literal(const char *word, Token *t) {
+  if (is_number(word, 0)) {
+    t->type = LITERAL;
+  }
+  return t->type != UNKNOWN_TOKEN;
+}
+
 Token tokenize(const char *word) {
 
   int word_size = 0;
@@ -70,57 +98,32 @@ Token tokenize(const char *word) {
     }
   }
 
-  char *value = calloc(sizeof(char), word_size);
+  // Following line gives a valgrind read error.
+  // char *value = calloc(sizeof(char), word_size);
+  // To fix it, add +1 to the word_size.
+  // Why +1 ? is it because of trailing \0 ?
+  char *value = calloc(sizeof(char), word_size + 1);
   memcpy(value, word, sizeof(char) * word_size);
 
-  Token t = {UNKOWN_TOKEN, value};
+  Token t = {UNKNOWN_TOKEN, value};
 
-  // match glyphs
-  if (word_size == 1 && is_glyph(word[0])) {
-    switch (word[0]) {
-    case '(':
-      t.type = OPEN_PAR;
-      break;
-    case ')':
-      t.type = CLOSE_PAR;
-      break;
-    case '{':
-      t.type = OPEN_CURL;
-      break;
-    case '}':
-      t.type = CLOSE_CURL;
-      break;
-    case ';':
-      t.type = SEMICOLON;
-      break;
-    case ' ':
-      t.type = WHITESPACE;
-      break;
-    case '\n':
-      t.type = CARRIAGE_RETURN;
-      break;
-    case '\t':
-      t.type = TAB;
-      break;
-    }
+  if (word_size == 1 && match_glyph(word, &t)) {
+    return t;
   }
 
-  // match C keywords
-
-  switch (word_size) {
-  case 3:
-    if (memcmp(word, "int", 3) == 0)
-      t.type = C_KEYWORD;
-    break;
-
-  case 6:
-    if (memcmp(word, "return", 6) == 0)
-      t.type = C_KEYWORD;
-
-    break;
+  if (match_keyword(word, word_size, &t)) {
+    return t;
   }
 
-  // TODO: literals and identifiers
+  if (is_number(word, 0)) {
+    t.type = LITERAL;
+    return t;
+  }
+
+  if (is_identifier(word, 0)) {
+    t.type = IDENTIFIER;
+    return t;
+  }
 
   return t;
 }

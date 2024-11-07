@@ -4,7 +4,8 @@ BUILD_DIR=build
 INCLUDE_DIR=src
 TARGET=compiler
 
-CORE_DEPS=$(BUILD_DIR)/lex.o $(BUILD_DIR)/file.o $(BUILD_DIR)/characters.o
+CORE_DEPS=$(BUILD_DIR)/lex.o $(BUILD_DIR)/file.o $(BUILD_DIR)/characters.o \
+$(BUILD_DIR)/tokens.o
 ALL_DEPS=$(BUILD_DIR)/main.o $(CORE_DEPS)
 
 GCC_PROJ=gcc -I ${INCLUDE_DIR} -Wall -Wextra -pedantic
@@ -38,4 +39,7 @@ ${BUILD_DIR}/file.o: src/utils/file.c
 	$(GCC_PROJ) -c $^ -o $@
 
 ${BUILD_DIR}/characters.o: src/utils/characters.c
+	$(GCC_PROJ) -c $^ -o $@
+
+${BUILD_DIR}/tokens.o: src/lexer/tokens.c
 	$(GCC_PROJ) -c $^ -o $@
