@@ -20,8 +20,13 @@ int main(int argc, char **argv) {
   }
 
   fprintf(stdout, "Compiling file %s\n", argv[1]);
+  Token token_list[MAX_TOKENS];
+  int n_token = lex(argv[1], token_list);
 
-  lex(argv[1]);
+  // Free all tokens
+  for(int i = 0; i < n_token; i++){
+    free(token_list[i].value);
+  }
 
   return 0;
 }
