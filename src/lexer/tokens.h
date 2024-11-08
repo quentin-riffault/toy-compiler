@@ -9,6 +9,9 @@
 #define LANGUAGE_TOKENS_NUMBER 12
 #define LANGUAGE_GLYPHS_NUMBER 21
 
+// TODO
+// Lookup metaprogramming for setting TokenTypes, Token numbers and token names.
+
 typedef enum TokenType {
   UNKNOWN_TOKEN = 0,
   OPEN_PAR = 1,
